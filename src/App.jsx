@@ -18,6 +18,7 @@ import ReportCard from './components/ReportCard';
 import UserReports from './pages/UserReports';
 import ProductReports from './pages/ProductReports';
 import RatingReports from './pages/RatingReports';
+import UserProductSearch from "./pages/UserProductSearch.jsx";
 
 export default function App() {
     // 1) Dashboard stats
@@ -97,9 +98,9 @@ export default function App() {
     // Prepare stat cards
     const cards = [
         { title: 'Total Users', value: stats.totalUsers },
-        { title: 'Pro Users', value: stats.proUsers },
-        { title: 'Premium Users', value: stats.premiumUsers },
-        { title: 'Premium Plus Users', value: stats.premiumPlusUsers },
+        { title: 'Plus Users', value: stats.proUsers },
+        { title: 'Pro Users', value: stats.premiumUsers },
+        { title: 'Premium Users', value: stats.premiumPlusUsers },
         { title: 'Products Listed', value: stats.totalProducts },
         { title: 'Products Sold', value: stats.soldProducts },
     ];
@@ -114,7 +115,7 @@ export default function App() {
                     <StatCard key={c.title} title={c.title} value={c.value} />
                 ))}
             </div>
-
+            <UserProductSearch />
             {/* Reports Section */}
             <h2 className="text-xl font-semibold mb-4">Reports</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
