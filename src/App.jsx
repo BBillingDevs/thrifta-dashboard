@@ -1,27 +1,71 @@
 // src/App.jsx
-import React, { useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
-import {
-    collection,
-    query,
-    where,
-    onSnapshot,
-    updateDoc,
-    doc,
-    deleteDoc,
-    addDoc,
-    serverTimestamp,
-} from 'firebase/firestore';
-import { db } from './firebase';
-import StatCard from './components/StatCard';
-import ReportCard from './components/ReportCard';
-import UserReports from './pages/UserReports';
-import ProductReports from './pages/ProductReports';
-import RatingReports from './pages/RatingReports';
+import React, { useEffect, useState } from "react";
+import { Routes, Route, NavLink } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "./firebase";
+
+import StatCard from "./components/StatCard";
+import ReportCard from "./components/ReportCard";
 import UserProductSearch from "./pages/UserProductSearch.jsx";
 
+import ReportsOverview from "./pages/ReportsOverview.jsx";
+import UserReports from "./pages/UserReports.jsx";
+import ProductReports from "./pages/ProductReports.jsx";
+import RatingReports from "./pages/RatingReports.jsx";
+import CustomerSupport from "./pages/CustomerSupport.jsx";
+import UserManagement from "./pages/UserManagement.jsx";
+
+import Login from "./pages/Login.jsx";
+
+/* ─────────────────────────  layout with nav  ───────────────────────── */
+function AdminLayout({ children }) {
+    return (
+        <div className="min-h-screen p-8 bg-gray-50">
+            <nav className="mb-8 flex flex-wrap gap-6 text-sm font-medium">
+                <NavLink
+                    to="/"
+                    end
+                    className={({ isActive }) =>
+                        isActive ? "text-blue-600" : "text-gray-700 hover:text-blue-600"
+                    }
+                >
+                    Dashboard
+                </NavLink>
+                <NavLink
+                    to="/reports"
+                    className={({ isActive }) =>
+                        isActive ? "text-blue-600" : "text-gray-700 hover:text-blue-600"
+                    }
+                >
+                    Reports
+                </NavLink>
+                <NavLink
+                    to="/users"
+                    className={({ isActive }) =>
+                        isActive ? "text-blue-600" : "text-gray-700 hover:text-blue-600"
+                    }
+                >
+                    Users
+                </NavLink>
+                <NavLink
+                    to="/support"
+                    className={({ isActive }) =>
+                        isActive ? "text-blue-600" : "text-gray-700 hover:text-blue-600"
+                    }
+                >
+                    Support
+                </NavLink>
+            </nav>
+
+            {children}
+        </div>
+    );
+}
+
 export default function App() {
-    // 1) Dashboard stats
+    /* ───────────────── live dashboard stats ───────────────── */
     const [stats, setStats] = useState({
         totalUsers: 0,
         proUsers: 0,
@@ -31,117 +75,187 @@ export default function App() {
         soldProducts: 0,
     });
 
-    // 2) Report counts
+    /* ───────────────── report counters ─────────────────────── */
     const [reportCounts, setReportCounts] = useState({
         users: 0,
         products: 0,
         ratings: 0,
     });
 
+    /* ───────────────── Firestore listeners ─────────────────── */
     useEffect(() => {
-        const unsubscribers = [];
+        const subs = [];
 
-        // Helper to attach a listener and track count under `stats`
-        const attachCountListener = (refQuery, key) => {
-            const unsub = onSnapshot(refQuery, (snap) => {
-                setStats(prev => ({ ...prev, [key]: snap.size }));
-            });
-            unsubscribers.push(unsub);
+        const track = (refQuery, key, setter) => {
+            const u = onSnapshot(refQuery, (snap) =>
+                setter((prev) => ({ ...prev, [key]: snap.size })),
+            );
+            subs.push(u);
         };
 
-        // 2a) Stats listeners
-        attachCountListener(collection(db, 'users'), 'totalUsers');
-        attachCountListener(
+        // stats
+        track(collection(db, "users"), "totalUsers", setStats);
+        track(
             query(
-                collection(db, 'users'),
-                where('subscriptionEntitlementId', '==', 'thrifta_pro')
+                collection(db, "users"),
+                where("subscriptionEntitlementId", "==", "thrifta_pro"),
             ),
-            'proUsers'
+            "proUsers",
+            setStats,
         );
-        attachCountListener(
+        track(
             query(
-                collection(db, 'users'),
-                where('subscriptionEntitlementId', '==', 'thrifta_premium')
+                collection(db, "users"),
+                where("subscriptionEntitlementId", "==", "thrifta_premium"),
             ),
-            'premiumUsers'
+            "premiumUsers",
+            setStats,
         );
-        attachCountListener(
+        track(
             query(
-                collection(db, 'users'),
-                where('subscriptionEntitlementId', '==', 'thrifta_premium_plus')
+                collection(db, "users"),
+                where("subscriptionEntitlementId", "==", "thrifta_premium_plus"),
             ),
-            'premiumPlusUsers'
+            "premiumPlusUsers",
+            setStats,
         );
-        attachCountListener(collection(db, 'products'), 'totalProducts');
-        attachCountListener(
-            query(collection(db, 'products'), where('sold', '==', true)),
-            'soldProducts'
+        track(collection(db, "products"), "totalProducts", setStats);
+        track(
+            query(collection(db, "products"), where("sold", "==", true)),
+            "soldProducts",
+            setStats,
         );
 
-        // Helper to watch a top‐level reports collection
-        const watch = (colPath, key) => {
-            const unsub = onSnapshot(collection(db, colPath), (snap) => {
-                setReportCounts(prev => ({ ...prev, [key]: snap.size }));
-            });
-            unsubscribers.push(unsub);
-        };
+        // report counters
+        track(collection(db, "userReports"), "users", setReportCounts);
+        track(collection(db, "product_reports"), "products", setReportCounts);
+        track(collection(db, "ratingReports"), "ratings", setReportCounts);
 
-        // 2b) Report count listeners
-        watch('userReports', 'users');
-        watch('productReports', 'products');
-        watch('ratingReports', 'ratings');
-
-        // Cleanup on unmount
-        return () => unsubscribers.forEach(unsub => unsub());
+        return () => subs.forEach((u) => u());
     }, []);
 
-    // Prepare stat cards
-    const cards = [
-        { title: 'Total Users', value: stats.totalUsers },
-        { title: 'Plus Users', value: stats.proUsers },
-        { title: 'Pro Users', value: stats.premiumUsers },
-        { title: 'Premium Users', value: stats.premiumPlusUsers },
-        { title: 'Products Listed', value: stats.totalProducts },
-        { title: 'Products Sold', value: stats.soldProducts },
+    /* ───────────────── stat cards for dashboard ────────────── */
+    const statCards = [
+        { title: "Total Users", value: stats.totalUsers },
+        { title: "Plus Users", value: stats.proUsers },
+        { title: "Pro Users", value: stats.premiumUsers },
+        { title: "Premium Users", value: stats.premiumPlusUsers },
+        { title: "Products Listed", value: stats.totalProducts },
+        { title: "Products Sold", value: stats.soldProducts },
     ];
 
+    /* ───────────────── routes ──────────────────────────────── */
     return (
-        <div className="min-h-screen p-8 bg-gray-50">
-            <h1 className="text-2xl font-bold mb-8">Thrifta Admin Dashboard</h1>
+        <Routes>
+            {/* public */}
+            <Route path="/login" element={<Login />} />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-                {cards.map((c) => (
-                    <StatCard key={c.title} title={c.title} value={c.value} />
-                ))}
-            </div>
-            <UserProductSearch />
-            {/* Reports Section */}
-            <h2 className="text-xl font-semibold mb-4">Reports</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12">
-                <ReportCard
-                    title="User Reports"
-                    to="/reports/users"
-                    count={reportCounts.users}
-                />
-                <ReportCard
-                    title="Product Reports"
-                    to="/reports/products"
-                    count={reportCounts.products}
-                />
-                <ReportCard
-                    title="Rating Reports"
-                    to="/reports/ratings"
-                    count={reportCounts.ratings}
-                />
-            </div>
+            {/* dashboard */}
+            <Route
+                path="/"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <h1 className="text-2xl font-bold mb-8">
+                                Thrifta Admin Dashboard
+                            </h1>
 
-            {/* Routes */}
-            <Routes>
-                <Route path="/reports/users" element={<UserReports />} />
-                <Route path="/reports/products" element={<ProductReports />} />
-                <Route path="/reports/ratings" element={<RatingReports />} />
-            </Routes>
-        </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                                {statCards.map((c) => (
+                                    <StatCard key={c.title} title={c.title} value={c.value} />
+                                ))}
+                            </div>
+
+                            <UserProductSearch />
+
+                            <h2 className="text-xl font-semibold mt-12 mb-4">Reports</h2>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                <ReportCard
+                                    title="User Reports"
+                                    to="/reports/users"
+                                    count={reportCounts.users}
+                                />
+                                <ReportCard
+                                    title="Product Reports"
+                                    to="/reports/products"
+                                    count={reportCounts.products}
+                                />
+                                <ReportCard
+                                    title="Rating Reports"
+                                    to="/reports/ratings"
+                                    count={reportCounts.ratings}
+                                />
+                            </div>
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* reports overview + sub-pages */}
+            <Route
+                path="/reports"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <ReportsOverview reportCounts={reportCounts} />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/reports/users"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <UserReports />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/reports/products"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <ProductReports />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/reports/ratings"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <RatingReports />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* user management */}
+            <Route
+                path="/users"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <UserManagement />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* customer support */}
+            <Route
+                path="/support"
+                element={
+                    <ProtectedRoute>
+                        <AdminLayout>
+                            <CustomerSupport />
+                        </AdminLayout>
+                    </ProtectedRoute>
+                }
+            />
+        </Routes>
     );
 }
