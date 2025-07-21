@@ -1,6 +1,13 @@
-# Redirect all routes to index.html so Refresh / deep-links work
+# 1) First, pass through any real assets under /assets
 [[redirects]]
-  from     = "/*"
-  to       = "/index.html"
-  status   = 200
-  force    = true
+  from   = "/assets/*"
+  to     = "/assets/:splat"
+  status = 200
+  force  = true
+
+# 2) Catch-all for your SPA routes—everything else goes to index.html
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+  force  = true
