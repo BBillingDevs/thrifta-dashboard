@@ -1,3 +1,4 @@
+// src/components/ChatSidebar.jsx
 import React, { useEffect, useState } from "react";
 import {
     collection,
@@ -7,34 +8,37 @@ import {
     orderBy,
 } from "firebase/firestore";
 import { db } from "../../firebase";
-import getChatId from "../../utils/getChatId";
 
-const ADMIN_UID = "ADMIN_UID";
-
+const ADMIN_UID = "HFhMEeJg7GdNCl4atA2YJTlAKsF2";
+const ADMIN_ALIAS = "Thrifta Admin";
+const ADMIN_EMAIL = "no-reply@thrifta.app";
 export default function ChatSidebar({ onSelect, activeUserId }) {
     const [threads, setThreads] = useState([]);
 
     useEffect(() => {
-        // every chat_room that includes the admin
         const q = query(
             collection(db, "chat_rooms"),
-            where(`participants.${ADMIN_UID}`, "==", true), // store participants as map for easy querying
+            where("userIds", "array-contains", ADMIN_UID),
             orderBy("lastMessageTime", "desc"),
         );
+
         const unsub = onSnapshot(q, (snap) => {
-            setThreads(
-                snap.docs.map((d) => ({
+            const data = snap.docs.map((d) => {
+                const doc = d.data();
+                const otherUserId =
+                    (doc.userIds || []).filter((uid) => uid !== ADMIN_UID)[0] ?? "";
+
+                return {
                     id: d.id,
-                    lastMessage: d.data().lastMessage,
-                    lastMessageTime: d.data().lastMessageTime?.toDate(),
-                    unread:
-                        d.data().unreadCount?.[
-                        ADMIN_UID === d.data().userA ? d.data().userB : d.data().userA
-                        ] ?? 0,
-                    otherUserId: d.id.replace(ADMIN_UID, "").replace("_", ""), // crude but works with getChatId
-                })),
-            );
+                    otherUserId,
+                    lastMessage: doc.lastMessage,
+                    lastMessageTime: doc.lastMessageTime?.toDate(),
+                    unread: doc.unreadCount?.[ADMIN_UID] ?? 0,
+                };
+            });
+            setThreads(data);
         });
+
         return unsub;
     }, []);
 
